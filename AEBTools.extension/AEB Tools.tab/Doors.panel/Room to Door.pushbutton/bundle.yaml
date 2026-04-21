@@ -1,0 +1,25 @@
+# Tool Name    : Room to Door Bundle
+# Purpose      : Define the pyRevit bundle metadata for the door parameter command
+# Author       : Ajmal P.S.
+# Company      : AJ Tools
+# Version      : 1.0.1
+# Created      : 2026-04-21
+# Last Updated : 2026-04-21
+# Target       : Revit 2020-2027
+# Platform     : pyRevit / YAML
+# Dependencies : pyRevit bundle loader
+# Input        : pyRevit command registration metadata
+# Output       : Door command title, tooltip, author, and version support data
+# Notes        : Companion metadata file for the Room to Door tool
+# Changelog    : v1.0.1 - Updated public help URL and aligned release metadata
+# License      : All Rights Reserved
+# Repo         : AEB-Tools
+
+title: Room to Door
+tooltip: |
+  Writes a selected writable text door parameter from the associated room number.
+  Supports Active View, Current Selection, or Whole Project scope with alphabetic or numeric suffixing.
+author: "All Rights Reserved \u00A9 Ajmal P.S. | AEB Tools"
+help_url: https://github.com/Ajmalpshaik/AEB-Tools
+min_revit_version: 2020
+max_revit_version: 2027

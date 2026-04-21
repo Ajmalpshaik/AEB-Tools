@@ -1,0 +1,9 @@
+{
+  "name": "AEB Tools",
+  "author": "All Rights Reserved \u00A9 Ajmal P.S. | AEB Tools",
+  "author_profile": "https://github.com/Ajmalpshaik",
+  "description": "Production pyRevit tools for multi-version BIM workflows.",
+  "url": "https://github.com/Ajmalpshaik/AEB-Tools",
+  "builtin": "false",
+  "rocket_mode_compatible": "true"
+}

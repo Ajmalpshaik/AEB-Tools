@@ -1,0 +1,21 @@
+# Tool Name    : Pulldown Template Bundle
+# Purpose      : Provide starter bundle metadata for a pyRevit pulldown container template
+# Author       : Ajmal P.S.
+# Company      : AJ Tools
+# Version      : 1.0.0
+# Created      : 2026-04-21
+# Last Updated : 2026-04-21
+# Target       : Revit 2020-2027
+# Platform     : pyRevit / YAML
+# Dependencies : pyRevit bundle loader
+# Input        : Template bundle metadata values
+# Output       : Starter pulldown title, tooltip, and author definition
+# Notes        : Use as the baseline metadata file when creating grouped command containers
+# Changelog    : v1.0.0 - Added standardized metadata header
+# License      : All Rights Reserved
+# Repo         : AEB-Tools
+
+title: Starter Pulldown
+tooltip: |
+  Container template for grouping related pushbutton tools.
+author: Internal BIM Technology Team
