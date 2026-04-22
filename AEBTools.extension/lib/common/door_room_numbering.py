@@ -463,7 +463,7 @@ def build_door_record(doc, door, phase_candidates):
     record = DoorRecord(door, get_door_sort_key(door))
     room, room_source, phase_name = resolve_associated_room(door, phase_candidates)
 
-    if room is None:
+    if not is_valid_api_object(room):
         record.base_skip_reason = "No associated room was found for this door."
         return record
 
@@ -563,9 +563,13 @@ def get_room_by_accessor(door, accessor_name, phase):
         return None
 
     try:
-        return getattr(door, accessor_name)
+        room = getattr(door, accessor_name)
     except Exception:
-        return None
+        room = None
+
+    if is_valid_api_object(room):
+        return room
+    return None
 
 
 def get_door_sort_key(door):
@@ -786,6 +790,14 @@ def is_invalid_element_id(element_id):
 
 def is_valid_api_object(api_object):
     if api_object is None:
+        return False
+
+    try:
+        object_id = api_object.Id
+    except Exception:
+        return False
+
+    if is_invalid_element_id(object_id):
         return False
 
     try:
