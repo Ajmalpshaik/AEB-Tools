@@ -1,0 +1,81 @@
+name: Bug report
+description: Report a reproducible problem in a released AEB Tools package
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for released package issues only. Include enough detail to reproduce the problem on the public install repository.
+  - type: input
+    id: release_version
+    attributes:
+      label: AEB Tools release version
+      description: Example: 1.0.2
+      placeholder: 1.0.2
+    validations:
+      required: true
+  - type: dropdown
+    id: revit_version
+    attributes:
+      label: Revit version
+      options:
+        - Revit 2020
+        - Revit 2021
+        - Revit 2022
+        - Revit 2023
+        - Revit 2024
+        - Revit 2025
+        - Revit 2026
+        - Revit 2027
+    validations:
+      required: true
+  - type: input
+    id: pyrevit_version
+    attributes:
+      label: pyRevit version
+      placeholder: 5.x.x
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Problem area
+      options:
+        - Installation
+        - Room to Door command
+        - Release package
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the exact steps in order
+      placeholder: |
+        1. Open Revit...
+        2. Launch the command...
+        3. Select...
+        4. Observe the problem...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Error text, screenshots, or additional context
+      description: Paste relevant error messages or links here

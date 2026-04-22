@@ -1,0 +1,48 @@
+name: Feature request
+description: Suggest a public-repo improvement or released-tool enhancement
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for practical, user-facing requests related to released builds or the public install repository.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or limitation
+      description: What is currently difficult or missing
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed improvement
+      description: Describe the change you want
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Request area
+      options:
+        - Room to Door command
+        - Installation experience
+        - Release packaging
+        - Documentation
+        - GitHub workflows
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Practical use case
+      description: Explain how this would help in real project work
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context

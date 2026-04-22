@@ -68,3 +68,7 @@ Tagged releases also generate a versioned ZIP package that contains:
 ## Support
 
 Use this repository for installation and updates. If a released package has a reproducible issue, open a GitHub issue with the Revit version, pyRevit version, and a short reproduction note.
+
+## GitHub Project Files
+
+This repository includes standard GitHub community files for issues, pull requests, contribution guidance, security reporting, and repository conduct so public maintenance can stay structured as the toolset grows.

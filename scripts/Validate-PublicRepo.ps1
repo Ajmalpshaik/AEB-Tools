@@ -27,9 +27,18 @@ $requiredPaths = @(
     "README.md",
     "CHANGELOG.md",
     "RELEASE_NOTES.md",
+    "CODE_OF_CONDUCT.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "LICENSE",
     "AEBTools.extension",
     "AEBTools.extension\extension.json",
-    "AEBTools.extension\AEB Tools.tab\Doors.panel\Room to Door.pushbutton\bundle.yaml"
+    "AEBTools.extension\AEB Tools.tab\Doors.panel\Room to Door.pushbutton\bundle.yaml",
+    ".github\CODEOWNERS",
+    ".github\PULL_REQUEST_TEMPLATE.md",
+    ".github\ISSUE_TEMPLATE\bug_report.yml",
+    ".github\ISSUE_TEMPLATE\feature_request.yml",
+    ".github\ISSUE_TEMPLATE\config.yml"
 )
 
 foreach ($requiredPath in $requiredPaths) {
