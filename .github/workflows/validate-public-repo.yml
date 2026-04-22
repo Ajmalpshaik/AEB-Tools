@@ -1,0 +1,20 @@
+name: Validate Public Repo
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate public repository metadata
+        shell: pwsh
+        run: ./scripts/Validate-PublicRepo.ps1

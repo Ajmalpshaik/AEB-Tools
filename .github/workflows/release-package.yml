@@ -1,0 +1,50 @@
+name: Release Package
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate public repository metadata
+        shell: pwsh
+        run: ./scripts/Validate-PublicRepo.ps1
+
+      - name: Build release package
+        shell: pwsh
+        run: ./scripts/Build-ReleasePackage.ps1
+
+      - name: Upload release package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AEB-Tools-package
+          path: artifacts/*.zip
+
+      - name: Read version
+        if: startsWith(github.ref, 'refs/tags/v')
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content -LiteralPath VERSION -Raw).Trim()
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: AEB Tools v${{ steps.version.outputs.version }}
+          body_path: RELEASE_NOTES.md
+          files: artifacts/*.zip
