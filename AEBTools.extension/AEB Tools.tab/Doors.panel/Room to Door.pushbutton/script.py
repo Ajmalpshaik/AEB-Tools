@@ -4,16 +4,16 @@ Tool Name    : Room to Door
 Purpose      : Launch the door parameter UI and write values from associated room numbers
 Author       : Ajmal P.S.
 Company      : AJ Tools
-Version      : 1.0.1
+Version      : 1.0.2
 Created      : 2026-04-21
-Last Updated : 2026-04-21
+Last Updated : 2026-04-22
 Target       : Revit 2020-2027
 Platform     : pyRevit / Python
 Dependencies : Autodesk Revit API, pyRevit
 Input        : Doors, Rooms, User UI settings
 Output       : Updated door parameter values and command feedback
 Notes        : Supports active view, current selection, and whole project scopes with suffix options and branded UI footers
-Changelog    : v1.0.1 - Added branded footer text to custom and task dialog UI
+Changelog    : v1.0.2 - Added room-side point lookup with a legacy Revit fallback mode
 License      : All Rights Reserved
 Repo         : AEB-Tools
 """
@@ -57,14 +57,23 @@ class DoorParameterFromRoomNumberWindow(forms.WPFWindow):
         ui_branding.apply_window_footer(self)
 
         self.scope_options = [
-            UiOption(engine.SCOPE_ACTIVE_VIEW, "Active View Only"),
-            UiOption(engine.SCOPE_CURRENT_SELECTION, "Current Selection Only"),
-            UiOption(engine.SCOPE_WHOLE_PROJECT, "Whole Project"),
+            UiOption(engine.SCOPE_ACTIVE_VIEW, engine.get_scope_label(engine.SCOPE_ACTIVE_VIEW)),
+            UiOption(engine.SCOPE_CURRENT_SELECTION, engine.get_scope_label(engine.SCOPE_CURRENT_SELECTION)),
+            UiOption(engine.SCOPE_WHOLE_PROJECT, engine.get_scope_label(engine.SCOPE_WHOLE_PROJECT)),
+        ]
+        self.room_source_options = [
+            UiOption(engine.ROOM_SOURCE_TO, engine.get_room_source_label(engine.ROOM_SOURCE_TO)),
+            UiOption(engine.ROOM_SOURCE_FROM, engine.get_room_source_label(engine.ROOM_SOURCE_FROM)),
+            UiOption(engine.ROOM_SOURCE_AUTO, engine.get_room_source_label(engine.ROOM_SOURCE_AUTO)),
         ]
 
         self.scopeComboBox.ItemsSource = self.scope_options
         self.scopeComboBox.DisplayMemberPath = "display_name"
         self.scopeComboBox.SelectedItem = self.scope_options[2]
+
+        self.roomSourceComboBox.ItemsSource = self.room_source_options
+        self.roomSourceComboBox.DisplayMemberPath = "display_name"
+        self.roomSourceComboBox.SelectedItem = self.room_source_options[0]
 
         self.parameterComboBox.DisplayMemberPath = "display_name"
         self.alphabeticRadioButton.IsChecked = True
@@ -76,6 +85,11 @@ class DoorParameterFromRoomNumberWindow(forms.WPFWindow):
         self.refresh_scope_state()
 
     def on_scope_changed(self, sender, args):  # pylint: disable=unused-argument
+        if self._is_initializing:
+            return
+        self.refresh_scope_state()
+
+    def on_room_source_changed(self, sender, args):  # pylint: disable=unused-argument
         if self._is_initializing:
             return
         self.refresh_scope_state()
@@ -116,17 +130,18 @@ class DoorParameterFromRoomNumberWindow(forms.WPFWindow):
         self.Close()
 
     def refresh_scope_state(self):
-        scope_key = self.get_selected_scope_key()
-        if scope_key in self.scope_cache:
-            scope_state = self.scope_cache[scope_key]
+        scope_cache_key = self.get_scope_cache_key()
+        if scope_cache_key in self.scope_cache:
+            scope_state = self.scope_cache[scope_cache_key]
         else:
             scope_state = engine.analyze_scope(
                 doc=self.doc,
                 uidoc=self.uidoc,
                 active_view=self.active_view,
-                scope_key=scope_key,
+                scope_key=self.get_selected_scope_key(),
+                room_source_mode=self.get_selected_room_source_mode(),
             )
-            self.scope_cache[scope_key] = scope_state
+            self.scope_cache[scope_cache_key] = scope_state
 
         previous_parameter_key = self.get_selected_parameter_key()
         parameter_choices = list(scope_state.parameter_choices)
@@ -149,7 +164,7 @@ class DoorParameterFromRoomNumberWindow(forms.WPFWindow):
         self.update_preview()
 
     def update_preview(self):
-        scope_state = self.scope_cache.get(self.get_selected_scope_key())
+        scope_state = self.scope_cache.get(self.get_scope_cache_key())
         if scope_state is None:
             self.previewTextBox.Text = "No scope analysis is available."
             self.statusTextBlock.Text = ""
@@ -163,6 +178,7 @@ class DoorParameterFromRoomNumberWindow(forms.WPFWindow):
             separator=self.get_separator(),
             no_suffix_single=self.get_no_suffix_single(),
             overwrite_existing=self.get_overwrite_existing(),
+            room_source_mode=self.get_selected_room_source_mode(),
         )
 
         self.previewTextBox.Text = build_preview_text(preview)
@@ -174,6 +190,18 @@ class DoorParameterFromRoomNumberWindow(forms.WPFWindow):
         selected_item = self.scopeComboBox.SelectedItem
         if selected_item is None:
             return engine.SCOPE_WHOLE_PROJECT
+        return selected_item.key
+
+    def get_scope_cache_key(self):
+        return (
+            self.get_selected_scope_key(),
+            self.get_selected_room_source_mode(),
+        )
+
+    def get_selected_room_source_mode(self):
+        selected_item = self.roomSourceComboBox.SelectedItem
+        if selected_item is None:
+            return engine.ROOM_SOURCE_TO
         return selected_item.key
 
     def get_selected_parameter_key(self):
@@ -237,6 +265,7 @@ def build_preview_text(preview):
         "Doors to update: {0}".format(len(preview.update_items)),
         "Doors skipped: {0}".format(len(preview.skipped_items)),
         "Selected parameter: {0}".format(parameter_name),
+        "Room source: {0}".format(format_room_source_mode(preview.room_source_mode)),
         "Suffix mode: {0}".format(format_suffix_mode(preview.suffix_mode)),
         "Separator: {0}".format(format_separator(preview.separator)),
         "No suffix for single door: {0}".format(format_yes_no(preview.no_suffix_single)),
@@ -245,6 +274,13 @@ def build_preview_text(preview):
 
     if preview.scope_state.collection_note:
         lines.append("Scope note: {0}".format(preview.scope_state.collection_note))
+
+    if preview.room_source_mode == engine.ROOM_SOURCE_TO:
+        lines.append("Room rule: uses a point lookup on the door facing side. Doors without a room on that side are skipped.")
+    elif preview.room_source_mode == engine.ROOM_SOURCE_FROM:
+        lines.append("Room rule: uses a point lookup on the opposite side of the door. Doors without a room on that side are skipped.")
+    else:
+        lines.append("Room rule: legacy Auto checks ToRoom first, then Room, then FromRoom.")
 
     lines.append("Linked-model doors are not edited; only host-document doors in the chosen scope are processed.")
 
@@ -280,12 +316,14 @@ def confirm_preview(preview):
     dialog.MainContent = (
         "Scope: {0}\n"
         "Parameter: {1}\n"
-        "Suffix mode: {2}\n"
-        "Separator: {3}\n"
-        "Doors to update: {4}\n"
-        "Doors skipped: {5}".format(
+        "Room source: {2}\n"
+        "Suffix mode: {3}\n"
+        "Separator: {4}\n"
+        "Doors to update: {5}\n"
+        "Doors skipped: {6}".format(
             preview.scope_state.scope_label,
             preview.parameter_choice.name,
+            format_room_source_mode(preview.room_source_mode),
             format_suffix_mode(preview.suffix_mode),
             format_separator(preview.separator),
             len(preview.update_items),
@@ -328,6 +366,7 @@ def print_report(preview, result):
     output.print_md("# Room to Door")
     output.print_md("**Scope:** {0}".format(preview.scope_state.scope_label))
     output.print_md("**Parameter:** {0}".format(preview.parameter_choice.name))
+    output.print_md("**Room Source:** {0}".format(format_room_source_mode(preview.room_source_mode)))
     output.print_md("**Suffix Mode:** {0}".format(format_suffix_mode(preview.suffix_mode)))
     output.print_md("**Separator:** {0}".format(format_separator(preview.separator)))
     output.print_md("**No Suffix For Single Door:** {0}".format(format_yes_no(preview.no_suffix_single)))
@@ -378,6 +417,10 @@ def format_suffix_mode(value):
     if value == engine.SUFFIX_NUMERIC:
         return "Numeric"
     return "Alphabetic"
+
+
+def format_room_source_mode(value):
+    return engine.get_room_source_label(value)
 
 
 def format_yes_no(value):

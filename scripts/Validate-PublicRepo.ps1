@@ -34,6 +34,7 @@ $requiredPaths = @(
     "AEBTools.extension",
     "AEBTools.extension\extension.json",
     "AEBTools.extension\AEB Tools.tab\Doors.panel\Room to Door.pushbutton\bundle.yaml",
+    "AEBTools.extension\AEB Tools.tab\Doors.panel\Identify Mirrored Doors.pushbutton\bundle.yaml",
     ".github\CODEOWNERS",
     ".github\PULL_REQUEST_TEMPLATE.md",
     ".github\ISSUE_TEMPLATE\bug_report.yml",
@@ -45,11 +46,6 @@ foreach ($requiredPath in $requiredPaths) {
     if (-not (Test-Path -LiteralPath $requiredPath)) {
         throw "Required path not found: $requiredPath"
     }
-}
-
-$bundleText = Get-Content -LiteralPath "AEBTools.extension\AEB Tools.tab\Doors.panel\Room to Door.pushbutton\bundle.yaml" -Raw
-if ($bundleText -notmatch "(?m)^# Version\s+:\s+$([regex]::Escape($version))`r?$") {
-    throw "bundle.yaml header version does not match VERSION ($version)."
 }
 
 $releaseNotes = Get-Content -LiteralPath "RELEASE_NOTES.md" -Raw

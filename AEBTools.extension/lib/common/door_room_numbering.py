@@ -4,16 +4,16 @@ Tool Name    : Door Room Numbering Engine
 Purpose      : Execute the core room lookup, suffixing, and parameter write logic for doors
 Author       : Ajmal P.S.
 Company      : AJ Tools
-Version      : 1.0.0
+Version      : 1.0.2
 Created      : 2026-04-21
-Last Updated : 2026-04-21
+Last Updated : 2026-04-22
 Target       : Revit 2020-2027
 Platform     : pyRevit / Python
 Dependencies : Autodesk Revit API, pyRevit-compatible Python runtime
 Input        : Revit document context, doors, rooms, command options
 Output       : Door parameter update results, previews, and transaction status data
 Notes        : Centralizes business logic so UI commands remain lightweight and maintainable
-Changelog    : v1.0.0 - Added standardized metadata header
+Changelog    : v1.0.2 - Added room-side point lookup with a legacy Revit fallback mode
 License      : All Rights Reserved
 Repo         : AEB-Tools
 """
@@ -21,25 +21,18 @@ Repo         : AEB-Tools
 from __future__ import absolute_import, division, print_function
 
 from collections import Counter, defaultdict
+from math import sqrt
 
 from Autodesk.Revit.DB import (
-    BuiltInCategory,
-    BuiltInParameter,
-    ElementCategoryFilter,
-    ElementId,
-    FamilyInstance,
-    FilteredElementCollector,
     LocationCurve,
     LocationPoint,
     StorageType,
     Transaction,
     TransactionStatus,
+    XYZ,
 )
 
-try:
-    text_type = unicode  # type: ignore[name-defined]
-except NameError:
-    text_type = str
+from common import revit_utils as utils
 
 
 SCOPE_ACTIVE_VIEW = "active_view"
@@ -49,14 +42,21 @@ SCOPE_WHOLE_PROJECT = "whole_project"
 SUFFIX_ALPHABETIC = "alphabetic"
 SUFFIX_NUMERIC = "numeric"
 
-DOOR_CATEGORY_FILTER = ElementCategoryFilter(BuiltInCategory.OST_Doors)
+ROOM_SOURCE_TO = "to_room"
+ROOM_SOURCE_FROM = "from_room"
+ROOM_SOURCE_AUTO = "auto"
+
+ROOM_PROBE_MIN_OFFSET_FEET = 0.75
+ROOM_PROBE_WALL_CLEARANCE_FEET = 0.25
+ROOM_PROBE_HEIGHTS_FEET = (3.0, 1.0, 0.1)
 
 
 class ScopeState(object):
-    def __init__(self, scope_key, scope_label, collection_note=None):
+    def __init__(self, scope_key, scope_label, collection_note=None, room_source_mode=ROOM_SOURCE_TO):
         self.scope_key = scope_key
         self.scope_label = scope_label
         self.collection_note = collection_note
+        self.room_source_mode = room_source_mode
         self.total_doors = 0
         self.resolved_door_count = 0
         self.room_group_count = 0
@@ -65,6 +65,7 @@ class ScopeState(object):
         self.writable_string_parameter_instance_count = 0
         self.door_records = []
         self.parameter_choices = []
+        self.parameter_choice_map = {}
 
 
 class ParameterChoice(object):
@@ -89,7 +90,7 @@ class DoorParameterState(object):
 class DoorRecord(object):
     def __init__(self, door, sort_key):
         self.door = door
-        self.door_id = safe_int(getattr(door.Id, "IntegerValue", None))
+        self.door_id = utils.safe_int(getattr(door.Id, "IntegerValue", None))
         self.door_label = describe_door(door)
         self.sort_key = sort_key
         self.parameter_states = {}
@@ -100,7 +101,7 @@ class DoorRecord(object):
         self.room_source = ""
         self.room_phase_name = ""
         self.base_skip_reason = None
-        self.is_grouped = element_is_grouped(door)
+        self.is_grouped = utils.element_is_grouped(door)
 
 
 class IssueRecord(object):
@@ -119,13 +120,14 @@ class PlannedUpdate(object):
 
 class PreviewResult(object):
     def __init__(self, scope_state, parameter_choice, suffix_mode, separator,
-                 no_suffix_single, overwrite_existing):
+                 no_suffix_single, overwrite_existing, room_source_mode):
         self.scope_state = scope_state
         self.parameter_choice = parameter_choice
         self.suffix_mode = suffix_mode
         self.separator = separator
         self.no_suffix_single = no_suffix_single
         self.overwrite_existing = overwrite_existing
+        self.room_source_mode = room_source_mode
         self.total_doors = scope_state.total_doors
         self.resolved_door_count = scope_state.resolved_door_count
         self.room_group_count = scope_state.room_group_count
@@ -150,7 +152,15 @@ def get_scope_label(scope_key):
     return "Whole Project"
 
 
-def analyze_scope(doc, uidoc, active_view, scope_key):
+def get_room_source_label(room_source_mode):
+    if room_source_mode == ROOM_SOURCE_FROM:
+        return "Opposite Side (Point Lookup)"
+    if room_source_mode == ROOM_SOURCE_AUTO:
+        return "Legacy Auto (ToRoom -> Room -> FromRoom)"
+    return "Facing Side (Point Lookup)"
+
+
+def analyze_scope(doc, uidoc, active_view, scope_key, room_source_mode=ROOM_SOURCE_TO):
     collection_note = None
     doors = []
 
@@ -164,7 +174,7 @@ def analyze_scope(doc, uidoc, active_view, scope_key):
 
         for element_id in selected_ids:
             door = doc.GetElement(element_id)
-            if is_door_instance(door):
+            if utils.is_door_instance(door):
                 doors.append(door)
 
         if not selected_ids:
@@ -172,25 +182,20 @@ def analyze_scope(doc, uidoc, active_view, scope_key):
         elif selected_ids and not doors:
             collection_note = "The current selection contains no host-document door instances."
     else:
-        collector = None
         if scope_key == SCOPE_ACTIVE_VIEW:
+            if active_view is None:
+                collection_note = "The active view is unavailable. Choose another scope if needed."
+            else:
+                try:
+                    doors = utils.collect_door_instances(doc, active_view)
+                except Exception:
+                    doors = []
+                    collection_note = "The active view could not be collected directly. Choose another scope if needed."
+        else:
             try:
-                collector = FilteredElementCollector(doc, active_view.Id)
+                doors = utils.collect_door_instances(doc)
             except Exception:
-                collection_note = "The active view could not be collected directly. Choose another scope if needed."
-                collector = None
-
-        if collector is None and scope_key != SCOPE_ACTIVE_VIEW:
-            collector = FilteredElementCollector(doc)
-
-        if collector is not None:
-            doors = list(
-                collector
-                .OfCategory(BuiltInCategory.OST_Doors)
-                .WhereElementIsNotElementType()
-            )
-
-        doors = [door for door in doors if is_door_instance(door)]
+                collection_note = "Door collection failed for the selected scope. Try again or switch scope if needed."
 
         if not doors and not collection_note:
             if scope_key == SCOPE_ACTIVE_VIEW:
@@ -198,19 +203,28 @@ def analyze_scope(doc, uidoc, active_view, scope_key):
             elif scope_key == SCOPE_WHOLE_PROJECT:
                 collection_note = "No host-document door instances were found in the project."
 
-    doors = sorted(doors, key=lambda door: safe_int(getattr(door.Id, "IntegerValue", None)))
-    phase_candidates = get_phase_candidates(doc, active_view)
+    doors.sort(key=lambda door: utils.safe_int(getattr(door.Id, "IntegerValue", None)))
+    phase_candidates = utils.get_phase_candidates(doc, active_view)
 
-    state = ScopeState(scope_key, get_scope_label(scope_key), collection_note)
+    state = ScopeState(
+        scope_key,
+        get_scope_label(scope_key),
+        collection_note,
+        room_source_mode=room_source_mode,
+    )
     state.total_doors = len(doors)
 
     parameter_map = {}
+    resolved_room_numbers = set()
 
     for door in doors:
-        record = build_door_record(doc, door, phase_candidates)
+        record = build_door_record(doc, door, phase_candidates, room_source_mode)
         state.door_records.append(record)
         if record.is_grouped:
             state.grouped_door_count += 1
+        if not record.base_skip_reason:
+            state.resolved_door_count += 1
+            resolved_room_numbers.add(record.room_number)
 
         for parameter in iterate_parameters(door):
             if not is_string_parameter(parameter):
@@ -245,19 +259,15 @@ def analyze_scope(doc, uidoc, active_view, scope_key):
                 state.writable_string_parameter_instance_count += 1
                 choice.writable_count += 1
 
-    valid_room_numbers = [
-        record.room_number
-        for record in state.door_records
-        if not record.base_skip_reason
-    ]
-    state.resolved_door_count = len(valid_room_numbers)
-    state.room_group_count = len(set(valid_room_numbers))
+    state.room_group_count = len(resolved_room_numbers)
     state.parameter_choices = finalize_parameter_choices(parameter_map, state.total_doors)
+    state.parameter_choice_map = dict((choice.key, choice) for choice in state.parameter_choices)
     return state
 
 
 def build_preview(scope_state, parameter_key, suffix_mode, separator,
-                  no_suffix_single, overwrite_existing):
+                  no_suffix_single, overwrite_existing, room_source_mode=None):
+    selected_room_source_mode = room_source_mode or scope_state.room_source_mode
     parameter_choice = find_parameter_choice(scope_state, parameter_key)
     preview = PreviewResult(
         scope_state=scope_state,
@@ -266,6 +276,7 @@ def build_preview(scope_state, parameter_key, suffix_mode, separator,
         separator=separator or "",
         no_suffix_single=no_suffix_single,
         overwrite_existing=overwrite_existing,
+        room_source_mode=selected_room_source_mode,
     )
 
     room_groups = defaultdict(list)
@@ -436,7 +447,7 @@ def build_target_value(room_number, group_count, index, suffix_mode, separator, 
         return room_number
 
     if suffix_mode == SUFFIX_NUMERIC:
-        suffix = text_type(index + 1)
+        suffix = str(index + 1)
     else:
         suffix = index_to_alphabetic(index)
 
@@ -459,12 +470,12 @@ def index_to_alphabetic(index):
     return "".join(letters)
 
 
-def build_door_record(doc, door, phase_candidates):
+def build_door_record(doc, door, phase_candidates, room_source_mode):
     record = DoorRecord(door, get_door_sort_key(door))
-    room, room_source, phase_name = resolve_associated_room(door, phase_candidates)
+    room, room_source, phase_name = resolve_associated_room(door, phase_candidates, room_source_mode)
 
     if not is_valid_api_object(room):
-        record.base_skip_reason = "No associated room was found for this door."
+        record.base_skip_reason = build_missing_room_message(room_source_mode)
         return record
 
     record.room = room
@@ -482,13 +493,44 @@ def build_door_record(doc, door, phase_candidates):
     return record
 
 
-def resolve_associated_room(door, phase_candidates):
-    # Prefer the room the door swings into, then the general room, then the opposite side.
-    accessors = (
+def build_missing_room_message(room_source_mode):
+    if room_source_mode == ROOM_SOURCE_FROM:
+        return "No room was found on the opposite side of this door."
+    if room_source_mode == ROOM_SOURCE_AUTO:
+        return "No associated room was found for this door."
+    return "No room was found on the facing side of this door."
+
+
+def get_room_accessors(room_source_mode):
+    if room_source_mode == ROOM_SOURCE_FROM:
+        return (
+            ("FromRoom", "FromRoom"),
+        )
+    if room_source_mode == ROOM_SOURCE_AUTO:
+        return (
+            ("ToRoom", "ToRoom"),
+            ("Room", "Room"),
+            ("FromRoom", "FromRoom"),
+        )
+    return (
         ("ToRoom", "ToRoom"),
-        ("Room", "Room"),
-        ("FromRoom", "FromRoom"),
     )
+
+
+def resolve_associated_room(door, phase_candidates, room_source_mode):
+    if room_source_mode != ROOM_SOURCE_AUTO:
+        return resolve_associated_room_by_points(
+            door.Document,
+            door,
+            phase_candidates,
+            use_facing_side=(room_source_mode == ROOM_SOURCE_TO),
+        )
+
+    return resolve_associated_room_legacy(door, phase_candidates)
+
+
+def resolve_associated_room_legacy(door, phase_candidates):
+    accessors = get_room_accessors(ROOM_SOURCE_AUTO)
 
     for phase in phase_candidates:
         for accessor_name, source_label in accessors:
@@ -504,106 +546,152 @@ def resolve_associated_room(door, phase_candidates):
     return None, "", ""
 
 
-def get_phase_candidates(doc, active_view):
-    phases = []
-    seen_ids = set()
+def resolve_associated_room_by_points(doc, door, phase_candidates, use_facing_side):
+    probe_sets = build_room_probe_sets(door)
+    if not probe_sets:
+        return None, "", ""
 
-    active_phase = get_view_phase(doc, active_view)
-    if active_phase is not None:
-        active_phase_id = safe_int(getattr(active_phase.Id, "IntegerValue", None))
-        phases.append(active_phase)
-        seen_ids.add(active_phase_id)
+    source_label = "FacingSidePoint" if use_facing_side else "OppositeSidePoint"
 
-    document_phases = list(doc.Phases)
-    document_phases.reverse()
-    for phase in document_phases:
-        phase_id = safe_int(getattr(phase.Id, "IntegerValue", None))
-        if phase_id in seen_ids:
-            continue
-        phases.append(phase)
-        seen_ids.add(phase_id)
+    for phase in phase_candidates:
+        for facing_point, opposite_point in probe_sets:
+            point = facing_point if use_facing_side else opposite_point
+            room = get_room_at_point(doc, point, phase)
+            if is_valid_api_object(room):
+                return room, source_label, safe_text(getattr(phase, "Name", ""))
 
-    return phases
+    for facing_point, opposite_point in probe_sets:
+        point = facing_point if use_facing_side else opposite_point
+        room = get_room_at_point(doc, point, None)
+        if is_valid_api_object(room):
+            return room, source_label, ""
 
-
-def get_view_phase(doc, active_view):
-    if active_view is None:
-        return None
-
-    try:
-        phase_param = active_view.get_Parameter(BuiltInParameter.VIEW_PHASE)
-    except Exception:
-        phase_param = None
-
-    if phase_param is None:
-        return None
-
-    try:
-        phase_id = phase_param.AsElementId()
-    except Exception:
-        phase_id = None
-
-    if is_invalid_element_id(phase_id):
-        return None
-
-    try:
-        return doc.GetElement(phase_id)
-    except Exception:
-        return None
+    return None, "", ""
 
 
-def get_room_by_accessor(door, accessor_name, phase):
-    if phase is not None:
-        accessor = getattr(door, "get_{0}".format(accessor_name), None)
-        if accessor is not None:
-            try:
-                return accessor(phase)
-            except Exception:
-                pass
-        return None
+def build_room_probe_sets(door):
+    origin = get_door_origin_point(door)
+    facing = normalize_xyz(get_xyz_property(door, "FacingOrientation"))
+    if origin is None or facing is None:
+        return []
 
-    try:
-        room = getattr(door, accessor_name)
-    except Exception:
-        room = None
+    offset_distance = get_room_probe_offset_distance(door)
+    probe_sets = []
+    for height_offset in ROOM_PROBE_HEIGHTS_FEET:
+        lifted_origin = XYZ(origin.X, origin.Y, origin.Z + float(height_offset))
+        facing_point = XYZ(
+            lifted_origin.X + (facing.X * offset_distance),
+            lifted_origin.Y + (facing.Y * offset_distance),
+            lifted_origin.Z + (facing.Z * offset_distance),
+        )
+        opposite_point = XYZ(
+            lifted_origin.X - (facing.X * offset_distance),
+            lifted_origin.Y - (facing.Y * offset_distance),
+            lifted_origin.Z - (facing.Z * offset_distance),
+        )
+        probe_sets.append((facing_point, opposite_point))
+    return probe_sets
 
-    if is_valid_api_object(room):
-        return room
-    return None
 
-
-def get_door_sort_key(door):
-    point = None
+def get_door_origin_point(door):
     try:
         location = door.Location
     except Exception:
         location = None
 
     if isinstance(location, LocationPoint):
-        point = location.Point
-    elif isinstance(location, LocationCurve):
         try:
-            point = location.Curve.Evaluate(0.5, True)
+            return location.Point
         except Exception:
-            point = None
+            pass
 
+    if isinstance(location, LocationCurve):
+        try:
+            return location.Curve.Evaluate(0.5, True)
+        except Exception:
+            pass
+
+    try:
+        bbox = door.get_BoundingBox(None)
+    except Exception:
+        bbox = None
+
+    if bbox is not None:
+        try:
+            return XYZ(
+                (bbox.Min.X + bbox.Max.X) / 2.0,
+                (bbox.Min.Y + bbox.Max.Y) / 2.0,
+                (bbox.Min.Z + bbox.Max.Z) / 2.0,
+            )
+        except Exception:
+            return None
+
+    return None
+
+
+def get_room_probe_offset_distance(door):
+    offset_distance = ROOM_PROBE_MIN_OFFSET_FEET
+
+    try:
+        host = door.Host
+    except Exception:
+        host = None
+
+    host_width = safe_float(getattr(host, "Width", None), 0.0)
+    if host_width > 0.0:
+        offset_distance = max(
+            ROOM_PROBE_MIN_OFFSET_FEET,
+            (host_width / 2.0) + ROOM_PROBE_WALL_CLEARANCE_FEET,
+        )
+    return offset_distance
+
+
+def get_room_at_point(doc, point, phase):
+    if doc is None or point is None:
+        return None
+
+    try:
+        if phase is not None:
+            return doc.GetRoomAtPoint(point, phase)
+        return doc.GetRoomAtPoint(point)
+    except Exception:
+        return None
+
+
+def get_xyz_property(element, property_name):
+    try:
+        return getattr(element, property_name)
+    except Exception:
+        return None
+
+
+def normalize_xyz(value):
+    if value is None:
+        return None
+
+    try:
+        length = value.GetLength()
+    except Exception:
+        try:
+            length = sqrt((value.X * value.X) + (value.Y * value.Y) + (value.Z * value.Z))
+        except Exception:
+            length = 0.0
+
+    if length <= 0.0:
+        return None
+
+    return XYZ(value.X / length, value.Y / length, value.Z / length)
+
+
+def get_room_by_accessor(door, accessor_name, phase):
+    return utils.get_room_by_accessor(door, accessor_name, phase)
+
+
+def get_door_sort_key(door):
+    point = get_door_origin_point(door)
     if point is None:
-        try:
-            bbox = door.get_BoundingBox(None)
-        except Exception:
-            bbox = None
-
-        if bbox is not None:
-            point = bbox.Min
-            try:
-                x_value = (bbox.Min.X + bbox.Max.X) / 2.0
-                y_value = (bbox.Min.Y + bbox.Max.Y) / 2.0
-            except Exception:
-                x_value = 0.0
-                y_value = 0.0
-        else:
-            x_value = 0.0
-            y_value = 0.0
+        x_value = 0.0
+        y_value = 0.0
     else:
         x_value = point.X
         y_value = point.Y
@@ -641,17 +729,14 @@ def finalize_parameter_choices(parameter_map, total_scope_doors):
 
 
 def find_parameter_choice(scope_state, parameter_key):
-    for choice in scope_state.parameter_choices:
-        if choice.key == parameter_key:
-            return choice
-    return None
+    return scope_state.parameter_choice_map.get(parameter_key)
 
 
 def iterate_parameters(element):
     try:
-        return list(element.Parameters)
+        return element.Parameters
     except Exception:
-        return []
+        return ()
 
 
 def find_parameter_by_key(element, parameter_key):
@@ -662,13 +747,7 @@ def find_parameter_by_key(element, parameter_key):
 
 
 def is_door_instance(element):
-    if element is None or not isinstance(element, FamilyInstance):
-        return False
-
-    try:
-        return DOOR_CATEGORY_FILTER.PassesFilter(element)
-    except Exception:
-        return False
+    return utils.is_door_instance(element)
 
 
 def get_parameter_key(parameter):
@@ -772,71 +851,32 @@ def describe_door(door):
 
 
 def element_is_grouped(element):
-    try:
-        return not is_invalid_element_id(element.GroupId)
-    except Exception:
-        return False
+    return utils.element_is_grouped(element)
 
 
 def is_invalid_element_id(element_id):
-    if element_id is None:
-        return True
-
-    try:
-        return element_id == ElementId.InvalidElementId
-    except Exception:
-        return False
+    return utils.is_invalid_element_id(element_id)
 
 
 def is_valid_api_object(api_object):
-    if api_object is None:
-        return False
-
-    try:
-        object_id = api_object.Id
-    except Exception:
-        return False
-
-    if is_invalid_element_id(object_id):
-        return False
-
-    try:
-        return api_object.IsValidObject
-    except Exception:
-        return True
+    return utils.is_valid_api_object(api_object)
 
 
 def normalize_text(value):
-    text_value = safe_text(value)
-    if not text_value:
-        return ""
-
-    text_value = text_value.replace("\r", " ").replace("\n", " ").replace("\t", " ")
-    while "  " in text_value:
-        text_value = text_value.replace("  ", " ")
-    return text_value.strip()
+    return utils.normalize_text(value)
 
 
 def safe_text(value):
-    if value is None:
-        return ""
-
-    try:
-        return text_type(value)
-    except Exception:
-        try:
-            return str(value)
-        except Exception:
-            return ""
+    return utils.safe_text(value)
 
 
 def safe_int(value, default=0):
-    try:
-        return int(value)
-    except Exception:
-        return default
+    return utils.safe_int(value, default)
+
+
+def safe_float(value, default=0.0):
+    return utils.safe_float(value, default)
 
 
 def clean_exception_message(error):
-    message = normalize_text(error)
-    return message or "Unexpected Revit API error."
+    return utils.clean_exception_message(error)

@@ -2,16 +2,16 @@
 # Purpose      : Define the pyRevit bundle metadata for the door parameter command
 # Author       : Ajmal P.S.
 # Company      : AJ Tools
-# Version      : 1.0.2
+# Version      : 1.0.1
 # Created      : 2026-04-21
-# Last Updated : 2026-04-22
+# Last Updated : 2026-04-21
 # Target       : Revit 2020-2027
 # Platform     : pyRevit / YAML
 # Dependencies : pyRevit bundle loader
 # Input        : pyRevit command registration metadata
 # Output       : Door command title, tooltip, author, and version support data
 # Notes        : Companion metadata file for the Room to Door tool
-# Changelog    : v1.0.2 - Aligned public package metadata with GitHub release automation
+# Changelog    : v1.0.1 - Updated public help URL and aligned release metadata
 # License      : All Rights Reserved
 # Repo         : AEB-Tools
 

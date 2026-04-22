@@ -1,10 +1,11 @@
 # Release Notes
 
-## 1.0.2 - 2026-04-22
+## 1.1.0 - 2026-04-22
 
-### Included command
+### Included commands
 
 - `Doors > Room to Door`
+- `Doors > Mirror Door`
 
 ### Supported Revit versions
 
@@ -14,11 +15,16 @@
 
 - `AEBTools.extension`
 
+### Functional updates
+
+- Added `Mirror Door` to the public install package with scoped scan, in-model selection, and CSV export
+- Updated `Room to Door` with door-side room-source selection and a legacy fallback mode
+- Refactored shared Revit helper logic used by the active door tools
+
 ### GitHub delivery updates
 
-- Added a GitHub Actions validation workflow for public release metadata
-- Added automated ZIP packaging for tagged releases
-- Updated the public README to guide users toward GitHub Releases for installation
+- Public release publishing continues through the tag-driven GitHub Actions package workflow
+- The public README now reflects both active production commands
 
 ### Delivery note
 

@@ -8,11 +8,15 @@ Public install repository for the `AEBTools.extension` pyRevit extension for Aut
 
 This repository is intended for installation, updates, and day-to-day use. Development, QA, and workspace automation are maintained separately in the private source workspace.
 
-## Included Tool
+## Included Tools
 
 ### Room to Door
 
-Updates a user-selected writable door parameter from the associated room number. The command supports active view, current selection, and whole-project processing with alphabetic or numeric suffixing.
+Updates a user-selected writable door parameter from the associated room number. The command supports active view, current selection, whole-project processing, and door-side room-source selection with alphabetic or numeric suffixing.
+
+### Mirror Door
+
+Finds mirrored and unmirrored host-document door instances using the real `FamilyInstance.Mirrored` property. The command supports selected elements, active view, or whole-project scanning, in-model selection, and Excel-compatible CSV export.
 
 ## Supported Revit Versions
 

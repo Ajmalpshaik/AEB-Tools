@@ -3,16 +3,16 @@ Tool Name    : Room to Door Window Layout
 Purpose      : Define the WPF layout for the door parameter assignment command window
 Author       : Ajmal P.S.
 Company      : AJ Tools
-Version      : 1.0.1
+Version      : 1.0.2
 Created      : 2026-04-21
-Last Updated : 2026-04-21
+Last Updated : 2026-04-22
 Target       : Revit 2020-2027
 Platform     : pyRevit / XAML
 Dependencies : WPF, pyRevit window loader
 Input        : User-selected tool settings and preview content
 Output       : Rendered tool window layout with branded footer placement
 Notes        : Footer area is reserved for AEB Tools ownership branding on custom windows
-Changelog    : v1.0.1 - Added branded footer area for the window
+Changelog    : v1.0.2 - Added room-side point lookup with a legacy Revit fallback mode
 License      : All Rights Reserved
 Repo         : AEB-Tools
 -->
@@ -20,9 +20,9 @@ Repo         : AEB-Tools
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Room to Door"
-    Height="680"
+    Height="710"
     Width="760"
-    MinHeight="650"
+    MinHeight="680"
     MinWidth="720"
     ResizeMode="CanResize"
     WindowStartupLocation="CenterOwner"
@@ -42,7 +42,7 @@ Repo         : AEB-Tools
             <StackPanel>
                 <TextBlock FontSize="20" FontWeight="Bold" Foreground="#FF2F3B33" Text="Room to Door" />
                 <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="#FF49554E"
-                           Text="Writes a selected writable text door parameter using Room Number plus an optional suffix. Whole Project is the default scope so existing doors are found without requiring a view-specific filter." />
+                           Text="Writes a selected writable text door parameter using a room number from a door-side point lookup or the legacy Revit room fields plus an optional suffix. Whole Project is the default scope so existing doors are found without requiring a view-specific filter." />
             </StackPanel>
         </Border>
 
@@ -53,6 +53,7 @@ Repo         : AEB-Tools
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
@@ -67,8 +68,11 @@ Repo         : AEB-Tools
             <TextBlock Grid.Row="0" Grid.Column="2" Margin="0,0,0,4" FontWeight="SemiBold" Text="Separator" />
             <TextBox Grid.Row="1" Grid.Column="2" x:Name="separatorTextBox" MaxLength="12" TextChanged="on_settings_changed" />
 
-            <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,4,0,4" FontWeight="SemiBold" Text="Suffix Mode" />
-            <StackPanel Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,4,0,0" Orientation="Horizontal">
+            <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,4,0,4" FontWeight="SemiBold" Text="Room Source" />
+            <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,4,0,4" FontWeight="SemiBold" Text="Suffix Mode" />
+
+            <ComboBox Grid.Row="3" Grid.Column="0" Margin="0,0,14,0" x:Name="roomSourceComboBox" SelectionChanged="on_room_source_changed" />
+            <StackPanel Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,0" Orientation="Horizontal">
                 <RadioButton x:Name="alphabeticRadioButton" Margin="0,0,18,0" GroupName="SuffixMode" Content="Alphabetic (A, B, C...)" Checked="on_settings_changed" />
                 <RadioButton x:Name="numericRadioButton" GroupName="SuffixMode" Content="Numeric (1, 2, 3...)" Checked="on_settings_changed" />
             </StackPanel>
