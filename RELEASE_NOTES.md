@@ -1,6 +1,6 @@
 # Release Notes
 
-## 1.1.0 - 2026-04-22
+## 1.1.1 - 2026-04-25
 
 ### Included commands
 
@@ -17,14 +17,14 @@
 
 ### Functional updates
 
-- Added `Mirror Door` to the public install package with scoped scan, in-model selection, and CSV export
-- Updated `Room to Door` with door-side room-source selection and a legacy fallback mode
-- Refactored shared Revit helper logic used by the active door tools
+- `Room to Door` now ships the current facing-side and opposite-side workflow with guarded `ToRoom` and `FromRoom` fallback behavior
+- `Mirror Door` is now packaged under its shipped command name instead of the older `Identify Mirrored Doors` bundle name
+- The public install package now contains only the active runtime bundles, shared libraries, and required extension metadata
 
 ### GitHub delivery updates
 
+- Public validation now checks the shipped `Mirror Door` bundle path and the cleaned runtime-only extension layout
 - Public release publishing continues through the tag-driven GitHub Actions package workflow
-- The public README now reflects both active production commands
 
 ### Delivery note
 

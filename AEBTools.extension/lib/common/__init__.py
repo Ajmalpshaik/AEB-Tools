@@ -2,7 +2,7 @@
 Tool Name    : Common Library Package
 Purpose      : Define the shared helper namespace used by pyRevit tools across supported Revit versions
 Author       : Ajmal P.S.
-Company      : AJ Tools
+Company      : AEB Tools
 Version      : 1.0.0
 Created      : 2026-04-21
 Last Updated : 2026-04-21

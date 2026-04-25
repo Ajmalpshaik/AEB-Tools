@@ -3,17 +3,17 @@
 Tool Name    : Mirror Door
 Purpose      : Find mirrored and unmirrored host-document door instances using the real FamilyInstance.Mirrored property
 Author       : Ajmal P.S.
-Company      : AJ Tools
-Version      : 1.2.3
+Company      : AEB Tools
+Version      : 1.2.4
 Created      : 2026-04-22
-Last Updated : 2026-04-22
+Last Updated : 2026-04-25
 Target       : Revit 2020-2027
 Platform     : pyRevit / Python
 Dependencies : Autodesk Revit API, pyRevit
 Input        : Active Revit project document and user-selected scope
 Output       : Single-window mirrored door workflow with scan, selection, and Excel-compatible CSV export
 Notes        : Keeps the full workflow inside one result window with scan, selection, and export actions
-Changelog    : v1.2.3 - Consolidated scan, selection, and export work into one maintained workflow
+Changelog    : v1.2.4 - Aligned metadata, naming, and release assets with the maintained workflow
 License      : All Rights Reserved
 Repo         : AEB-Tools
 """

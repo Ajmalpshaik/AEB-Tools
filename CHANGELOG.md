@@ -4,6 +4,14 @@
 
 - Reserved for upcoming public release changes.
 
+## [1.1.1] - 2026-04-25
+
+- Synced the cleaned `1.1.1` release package from the validated private `PyRevit-Tools` workspace.
+- Renamed the shipped mirrored-door command bundle from `Identify Mirrored Doors` to `Mirror Door` to match the Revit UI.
+- Updated `Room to Door` to use the current facing-side and opposite-side workflow with guarded `ToRoom` and `FromRoom` fallback behavior.
+- Removed bundle-local README files, starter template bundles, empty placeholder folders, and unused version-stub packages from the public install package.
+- Updated public release metadata and validation rules to match the runtime-only extension layout.
+
 ## [1.1.0] - 2026-04-22
 
 - Added the `Mirror Door` production command to the public install package

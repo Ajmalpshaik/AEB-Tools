@@ -8,11 +8,14 @@ Public install repository for the `AEBTools.extension` pyRevit extension for Aut
 
 This repository is intended for installation, updates, and day-to-day use. Development, QA, and workspace automation are maintained separately in the private source workspace.
 
+- Current public package version: `1.1.1`
+- Maintainer: `Ajmal P.S.`
+
 ## Included Tools
 
 ### Room to Door
 
-Updates a user-selected writable door parameter from the associated room number. The command supports active view, current selection, whole-project processing, and door-side room-source selection with alphabetic or numeric suffixing.
+Updates a user-selected writable door parameter from the associated room number. The command supports active view, current selection, whole-project processing, facing-side or opposite-side room resolution, and deterministic alphabetic or numeric suffixing.
 
 ### Mirror Door
 
@@ -63,7 +66,7 @@ Tagged releases also generate a versioned ZIP package that contains:
 
 ## Repository Contents
 
-- `AEBTools.extension` - pyRevit extension files for installation
+- `AEBTools.extension` - runtime-only pyRevit extension files for installation
 - `README.md` - install and usage guide
 - `CHANGELOG.md` - public release history
 - `RELEASE_NOTES.md` - latest public release summary

@@ -3,7 +3,7 @@
 Tool Name    : Shared Revit Utility Helpers
 Purpose      : Centralize common Revit API guards, text normalization, and door collection helpers
 Author       : Ajmal P.S.
-Company      : AJ Tools
+Company      : AEB Tools
 Version      : 1.0.0
 Created      : 2026-04-22
 Last Updated : 2026-04-22

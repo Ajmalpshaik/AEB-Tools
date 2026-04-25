@@ -2,17 +2,17 @@
 Tool Name    : Mirror Door Window Layout
 Purpose      : Define the single-window WPF layout for scope selection, scan, results, and actions
 Author       : Ajmal P.S.
-Company      : AJ Tools
-Version      : 1.2.3
+Company      : AEB Tools
+Version      : 1.2.4
 Created      : 2026-04-22
-Last Updated : 2026-04-22
+Last Updated : 2026-04-25
 Target       : Revit 2020-2027
 Platform     : pyRevit / XAML
 Dependencies : WPF, pyRevit window loader
 Input        : User-selected scope and post-scan row selections from mirrored and unmirrored lists
 Output       : Rendered single workflow window with summary, result lists, and action buttons
 Notes        : Footer area is reserved for AEB Tools ownership branding on custom windows
-Changelog    : v1.2.3 - Simplified the maintained scan window layout and action wiring
+Changelog    : v1.2.4 - Aligned metadata, naming, and release assets with the maintained workflow
 License      : All Rights Reserved
 Repo         : AEB-Tools
 -->

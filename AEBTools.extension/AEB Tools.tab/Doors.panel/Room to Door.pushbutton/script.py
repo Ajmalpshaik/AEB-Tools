@@ -1,31 +1,35 @@
 # -*- coding: utf-8 -*-
 """
 Tool Name    : Room to Door
-Purpose      : Launch the door parameter UI and write values from associated room numbers
+Purpose      : Launch the door parameter UI and write room-number door values with stable suffixing
 Author       : Ajmal P.S.
-Company      : AJ Tools
-Version      : 1.0.2
-Created      : 2026-04-21
-Last Updated : 2026-04-22
+Company      : AEB Tools
+Version      : 1.0.1
+Created      : 2026-04-25
+Last Updated : 2026-04-25
 Target       : Revit 2020-2027
-Platform     : pyRevit / Python
+Platform     : pyRevit / IronPython
 Dependencies : Autodesk Revit API, pyRevit
 Input        : Doors, Rooms, User UI settings
 Output       : Updated door parameter values and command feedback
-Notes        : Supports active view, current selection, and whole project scopes with suffix options and branded UI footers
-Changelog    : v1.0.2 - Added room-side point lookup with a legacy Revit fallback mode
+Notes        : Supports active view, current selection, and whole project scopes with stable room-number suffix options
+Changelog    : v1.0.1 - Cleaner preview, simpler UI, stale-selection refresh, removed dead code
 License      : All Rights Reserved
 Repo         : AEB-Tools
 """
 
 from __future__ import absolute_import, division, print_function
 
+__title__ = "Room to Door"
+__author__ = "Ajmal P.S."
+__doc__ = "Write room numbers to door parameters using stable facing-side and opposite-side detection."
+
 import os
+from collections import Counter
 
 from Autodesk.Revit.UI import (
     TaskDialog,
     TaskDialogCommonButtons,
-    TaskDialogResult,
 )
 from pyrevit import forms, script
 
@@ -43,7 +47,7 @@ class UiOption(object):
         self.display_name = display_name
 
 
-class DoorParameterFromRoomNumberWindow(forms.WPFWindow):
+class RoomToDoorWindow(forms.WPFWindow):
     def __init__(self, doc, uidoc):
         self.doc = doc
         self.uidoc = uidoc
@@ -57,28 +61,27 @@ class DoorParameterFromRoomNumberWindow(forms.WPFWindow):
         ui_branding.apply_window_footer(self)
 
         self.scope_options = [
-            UiOption(engine.SCOPE_ACTIVE_VIEW, engine.get_scope_label(engine.SCOPE_ACTIVE_VIEW)),
             UiOption(engine.SCOPE_CURRENT_SELECTION, engine.get_scope_label(engine.SCOPE_CURRENT_SELECTION)),
+            UiOption(engine.SCOPE_ACTIVE_VIEW, engine.get_scope_label(engine.SCOPE_ACTIVE_VIEW)),
             UiOption(engine.SCOPE_WHOLE_PROJECT, engine.get_scope_label(engine.SCOPE_WHOLE_PROJECT)),
         ]
-        self.room_source_options = [
-            UiOption(engine.ROOM_SOURCE_TO, engine.get_room_source_label(engine.ROOM_SOURCE_TO)),
-            UiOption(engine.ROOM_SOURCE_FROM, engine.get_room_source_label(engine.ROOM_SOURCE_FROM)),
-            UiOption(engine.ROOM_SOURCE_AUTO, engine.get_room_source_label(engine.ROOM_SOURCE_AUTO)),
+        self.room_side_options = [
+            UiOption(engine.ROOM_SIDE_FACING, engine.get_room_side_label(engine.ROOM_SIDE_FACING)),
+            UiOption(engine.ROOM_SIDE_OPPOSITE, engine.get_room_side_label(engine.ROOM_SIDE_OPPOSITE)),
         ]
 
         self.scopeComboBox.ItemsSource = self.scope_options
         self.scopeComboBox.DisplayMemberPath = "display_name"
         self.scopeComboBox.SelectedItem = self.scope_options[2]
 
-        self.roomSourceComboBox.ItemsSource = self.room_source_options
-        self.roomSourceComboBox.DisplayMemberPath = "display_name"
-        self.roomSourceComboBox.SelectedItem = self.room_source_options[0]
+        self.roomSideComboBox.ItemsSource = self.room_side_options
+        self.roomSideComboBox.DisplayMemberPath = "display_name"
+        self.roomSideComboBox.SelectedItem = self.room_side_options[0]
 
         self.parameterComboBox.DisplayMemberPath = "display_name"
-        self.alphabeticRadioButton.IsChecked = True
+        self.suffixCheckBox.IsChecked = True
+        self.numericRadioButton.IsChecked = True
         self.separatorTextBox.Text = "-"
-        self.noSuffixSingleCheckBox.IsChecked = True
         self.overwriteExistingCheckBox.IsChecked = False
 
         self._is_initializing = False
@@ -89,14 +92,10 @@ class DoorParameterFromRoomNumberWindow(forms.WPFWindow):
             return
         self.refresh_scope_state()
 
-    def on_room_source_changed(self, sender, args):  # pylint: disable=unused-argument
-        if self._is_initializing:
-            return
-        self.refresh_scope_state()
-
     def on_settings_changed(self, sender, args):  # pylint: disable=unused-argument
         if self._is_initializing:
             return
+        self.refresh_suffix_state()
         self.update_preview()
 
     def on_run_click(self, sender, args):  # pylint: disable=unused-argument
@@ -115,9 +114,6 @@ class DoorParameterFromRoomNumberWindow(forms.WPFWindow):
             )
             return
 
-        if not confirm_preview(preview):
-            return
-
         self.preview_result = preview
         try:
             self.DialogResult = True
@@ -130,18 +126,21 @@ class DoorParameterFromRoomNumberWindow(forms.WPFWindow):
         self.Close()
 
     def refresh_scope_state(self):
-        scope_cache_key = self.get_scope_cache_key()
-        if scope_cache_key in self.scope_cache:
-            scope_state = self.scope_cache[scope_cache_key]
-        else:
+        scope_key = self.get_selected_scope_key()
+        cache_key = self.get_scope_cache_key()
+
+        # Selection scope is re-analyzed on each visit so a changed Revit
+        # selection is picked up without closing and reopening the tool.
+        if scope_key == engine.SCOPE_CURRENT_SELECTION or cache_key not in self.scope_cache:
             scope_state = engine.analyze_scope(
                 doc=self.doc,
                 uidoc=self.uidoc,
                 active_view=self.active_view,
-                scope_key=self.get_selected_scope_key(),
-                room_source_mode=self.get_selected_room_source_mode(),
+                scope_key=scope_key,
             )
-            self.scope_cache[scope_cache_key] = scope_state
+            self.scope_cache[cache_key] = scope_state
+        else:
+            scope_state = self.scope_cache[cache_key]
 
         previous_parameter_key = self.get_selected_parameter_key()
         parameter_choices = list(scope_state.parameter_choices)
@@ -161,6 +160,7 @@ class DoorParameterFromRoomNumberWindow(forms.WPFWindow):
         else:
             self.parameterComboBox.SelectedIndex = -1
 
+        self.refresh_suffix_state()
         self.update_preview()
 
     def update_preview(self):
@@ -174,11 +174,11 @@ class DoorParameterFromRoomNumberWindow(forms.WPFWindow):
         preview = engine.build_preview(
             scope_state=scope_state,
             parameter_key=self.get_selected_parameter_key(),
-            suffix_mode=self.get_suffix_mode(),
+            room_side_key=self.get_selected_room_side_key(),
+            suffix_enabled=self.get_suffix_enabled(),
+            suffix_mode=self.get_selected_suffix_mode(),
             separator=self.get_separator(),
-            no_suffix_single=self.get_no_suffix_single(),
             overwrite_existing=self.get_overwrite_existing(),
-            room_source_mode=self.get_selected_room_source_mode(),
         )
 
         self.previewTextBox.Text = build_preview_text(preview)
@@ -193,15 +193,12 @@ class DoorParameterFromRoomNumberWindow(forms.WPFWindow):
         return selected_item.key
 
     def get_scope_cache_key(self):
-        return (
-            self.get_selected_scope_key(),
-            self.get_selected_room_source_mode(),
-        )
+        return self.get_selected_scope_key()
 
-    def get_selected_room_source_mode(self):
-        selected_item = self.roomSourceComboBox.SelectedItem
+    def get_selected_room_side_key(self):
+        selected_item = self.roomSideComboBox.SelectedItem
         if selected_item is None:
-            return engine.ROOM_SOURCE_TO
+            return engine.ROOM_SIDE_FACING
         return selected_item.key
 
     def get_selected_parameter_key(self):
@@ -210,19 +207,25 @@ class DoorParameterFromRoomNumberWindow(forms.WPFWindow):
             return None
         return selected_item.key
 
-    def get_suffix_mode(self):
-        if self.numericRadioButton.IsChecked:
-            return engine.SUFFIX_NUMERIC
-        return engine.SUFFIX_ALPHABETIC
+    def get_suffix_enabled(self):
+        return bool(self.suffixCheckBox.IsChecked)
+
+    def get_selected_suffix_mode(self):
+        if self.alphabeticRadioButton.IsChecked:
+            return engine.SUFFIX_ALPHABETIC
+        return engine.SUFFIX_NUMERIC
 
     def get_separator(self):
         return self.separatorTextBox.Text or ""
 
-    def get_no_suffix_single(self):
-        return bool(self.noSuffixSingleCheckBox.IsChecked)
-
     def get_overwrite_existing(self):
         return bool(self.overwriteExistingCheckBox.IsChecked)
+
+    def refresh_suffix_state(self):
+        suffix_enabled = self.get_suffix_enabled()
+        self.numericRadioButton.IsEnabled = suffix_enabled
+        self.alphabeticRadioButton.IsEnabled = suffix_enabled
+        self.separatorTextBox.IsEnabled = suffix_enabled
 
 
 def main():
@@ -236,7 +239,7 @@ def main():
         show_message_dialog("No active Revit document was found.")
         return
 
-    window = DoorParameterFromRoomNumberWindow(doc, uidoc)
+    window = RoomToDoorWindow(doc, uidoc)
     window.show_dialog()
 
     preview = window.preview_result
@@ -254,85 +257,67 @@ def build_preview_text(preview):
     if preview.parameter_choice is not None:
         parameter_name = preview.parameter_choice.name
 
+    side_label = engine.get_room_side_label(preview.room_side_key)
     lines = [
-        "Scope: {0}".format(preview.scope_state.scope_label),
-        "Total doors found: {0}".format(preview.total_doors),
-        "Resolved door-room assignments: {0}".format(preview.resolved_door_count),
-        "Room number groups: {0}".format(preview.room_group_count),
-        "Text parameters scanned: {0}".format(preview.scope_state.string_parameter_instance_count),
-        "Writable text parameters scanned: {0}".format(preview.scope_state.writable_string_parameter_instance_count),
-        "Writable parameter options: {0}".format(len(preview.scope_state.parameter_choices)),
+        "Scope:          {0}".format(preview.scope_state.scope_label),
+        "Doors found:    {0}".format(preview.total_doors),
+        "Rooms resolved: {0} of {1} on the {2}".format(
+            preview.selected_side_resolved_count,
+            preview.total_doors,
+            side_label.lower(),
+        ),
+        "",
+        "Parameter:      {0}".format(parameter_name),
+        "Room side:      {0}".format(side_label),
+        "Suffix:         {0}".format(format_suffix_summary(preview)),
+        "Overwrite:      {0}".format(format_yes_no(preview.overwrite_existing)),
+        "",
         "Doors to update: {0}".format(len(preview.update_items)),
-        "Doors skipped: {0}".format(len(preview.skipped_items)),
-        "Selected parameter: {0}".format(parameter_name),
-        "Room source: {0}".format(format_room_source_mode(preview.room_source_mode)),
-        "Suffix mode: {0}".format(format_suffix_mode(preview.suffix_mode)),
-        "Separator: {0}".format(format_separator(preview.separator)),
-        "No suffix for single door: {0}".format(format_yes_no(preview.no_suffix_single)),
-        "Overwrite existing values: {0}".format(format_yes_no(preview.overwrite_existing)),
+        "Doors skipped:   {0}".format(len(preview.skipped_items)),
     ]
 
-    if preview.scope_state.collection_note:
-        lines.append("Scope note: {0}".format(preview.scope_state.collection_note))
+    if preview.multi_door_room_count > 0:
+        lines.append(
+            "Rooms with multiple doors on this side: {0}".format(preview.multi_door_room_count)
+        )
 
-    if preview.room_source_mode == engine.ROOM_SOURCE_TO:
-        lines.append("Room rule: uses a point lookup on the door facing side. Doors without a room on that side are skipped.")
-    elif preview.room_source_mode == engine.ROOM_SOURCE_FROM:
-        lines.append("Room rule: uses a point lookup on the opposite side of the door. Doors without a room on that side are skipped.")
-    else:
-        lines.append("Room rule: legacy Auto checks ToRoom first, then Room, then FromRoom.")
-
-    lines.append("Linked-model doors are not edited; only host-document doors in the chosen scope are processed.")
+    if preview.accessor_fallback_count > 0:
+        lines.append(
+            "Doors resolved via ToRoom/FromRoom fallback: {0}".format(preview.accessor_fallback_count)
+        )
 
     if preview.scope_state.grouped_door_count:
         lines.append(
-            "Grouped doors in scope: {0}. Group member writes can still fail if the selected parameter cannot vary by group.".format(
+            "Grouped doors in scope: {0} (Revit may block writes for grouped instances).".format(
                 preview.scope_state.grouped_door_count
             )
         )
 
+    if preview.scope_state.collection_note:
+        lines.append("")
+        lines.append("Note: {0}".format(preview.scope_state.collection_note))
+
+    append_skip_reason_summary(lines, preview.skipped_items)
+
     if preview.blocking_message:
+        lines.append("")
         lines.append("Action required: {0}".format(preview.blocking_message))
     elif not preview.update_items:
-        lines.append("Nothing is queued for writing with the current settings.")
+        lines.append("")
+        lines.append("Nothing to update with the current settings.")
 
     return "\n".join(lines)
 
 
 def build_status_text(preview):
-    parameter_count = len(preview.scope_state.parameter_choices)
     if preview.blocking_message:
         return preview.blocking_message
 
+    parameter_count = len(preview.scope_state.parameter_choices)
     return "{0} parameter option(s) available. {1} door(s) ready to update.".format(
         parameter_count,
         len(preview.update_items),
     )
-
-
-def confirm_preview(preview):
-    dialog = TaskDialog("Room to Door")
-    dialog.MainInstruction = "Review preview and update the selected door parameter?"
-    dialog.MainContent = (
-        "Scope: {0}\n"
-        "Parameter: {1}\n"
-        "Room source: {2}\n"
-        "Suffix mode: {3}\n"
-        "Separator: {4}\n"
-        "Doors to update: {5}\n"
-        "Doors skipped: {6}".format(
-            preview.scope_state.scope_label,
-            preview.parameter_choice.name,
-            format_room_source_mode(preview.room_source_mode),
-            format_suffix_mode(preview.suffix_mode),
-            format_separator(preview.separator),
-            len(preview.update_items),
-            len(preview.skipped_items),
-        )
-    )
-    dialog.CommonButtons = TaskDialogCommonButtons.Ok | TaskDialogCommonButtons.Cancel
-    ui_branding.apply_task_dialog_footer(dialog)
-    return dialog.Show() == TaskDialogResult.Ok
 
 
 def show_message_dialog(message, instruction=None):
@@ -366,10 +351,8 @@ def print_report(preview, result):
     output.print_md("# Room to Door")
     output.print_md("**Scope:** {0}".format(preview.scope_state.scope_label))
     output.print_md("**Parameter:** {0}".format(preview.parameter_choice.name))
-    output.print_md("**Room Source:** {0}".format(format_room_source_mode(preview.room_source_mode)))
-    output.print_md("**Suffix Mode:** {0}".format(format_suffix_mode(preview.suffix_mode)))
-    output.print_md("**Separator:** {0}".format(format_separator(preview.separator)))
-    output.print_md("**No Suffix For Single Door:** {0}".format(format_yes_no(preview.no_suffix_single)))
+    output.print_md("**Room Side:** {0}".format(engine.get_room_side_label(preview.room_side_key)))
+    output.print_md("**Suffix:** {0}".format(format_suffix_summary(preview)))
     output.print_md("**Overwrite Existing Values:** {0}".format(format_yes_no(preview.overwrite_existing)))
     output.print_md("")
     output.print_md("## Summary")
@@ -380,47 +363,120 @@ def print_report(preview, result):
     if result.updated_items:
         output.print_md("")
         output.print_md("## Updated Doors")
-        for item in sorted(result.updated_items, key=lambda update: update.door_record.sort_key):
+        for item in sorted(result.updated_items, key=get_result_item_sort_key):
             output.print_md(
-                "- {0} -> `{1}`".format(item.door_record.door_label, item.target_value)
+                "- {0} -> `{1}` ({2}) | {3}".format(
+                    item.door_record.door_label,
+                    item.target_value,
+                    item.room_match.source_label,
+                    format_door_side_details(item.door_record),
+                )
             )
 
     if result.skipped_items:
         output.print_md("")
         output.print_md("## Skipped Doors")
-        for issue in sorted(result.skipped_items, key=lambda value: value.door_record.sort_key):
-            output.print_md("- {0}: {1}".format(issue.door_record.door_label, issue.reason))
+        for issue in sorted(result.skipped_items, key=lambda value: get_issue_sort_key(value, preview.room_side_key)):
+            output.print_md(
+                "- {0}: {1} | {2}".format(
+                    issue.door_record.door_label,
+                    issue.reason,
+                    format_door_side_details(issue.door_record),
+                )
+            )
 
     if result.failed_items:
         output.print_md("")
         output.print_md("## Failed Writes")
-        for issue in sorted(result.failed_items, key=lambda value: value.door_record.sort_key):
+        for issue in sorted(result.failed_items, key=lambda value: get_issue_sort_key(value, preview.room_side_key)):
             if issue.target_value:
                 output.print_md(
-                    "- {0}: {1} Target value: `{2}`".format(
+                    "- {0}: {1} Target value: `{2}` | {3}".format(
                         issue.door_record.door_label,
                         issue.reason,
                         issue.target_value,
+                        format_door_side_details(issue.door_record),
                     )
                 )
             else:
-                output.print_md("- {0}: {1}".format(issue.door_record.door_label, issue.reason))
+                output.print_md(
+                    "- {0}: {1} | {2}".format(
+                        issue.door_record.door_label,
+                        issue.reason,
+                        format_door_side_details(issue.door_record),
+                    )
+                )
 
 
-def format_separator(value):
-    if value:
-        return "'{0}'".format(value)
-    return "(blank)"
+def format_door_side_details(door_record):
+    return "Facing: {0} | Opposite: {1}".format(
+        format_room_state(door_record.facing_room, door_record.facing_issue),
+        format_room_state(door_record.opposite_room, door_record.opposite_issue),
+    )
 
 
-def format_suffix_mode(value):
-    if value == engine.SUFFIX_NUMERIC:
-        return "Numeric"
-    return "Alphabetic"
+def format_room_state(room_match, missing_reason):
+    if room_match is None:
+        return "None ({0})".format(missing_reason or "No room")
+
+    room_parts = []
+    if room_match.room_number:
+        room_parts.append(room_match.room_number)
+    if room_match.room_name:
+        room_parts.append(room_match.room_name)
+
+    room_text = " / ".join(room_parts)
+    if not room_text:
+        room_text = "Room {0}".format(room_match.room_id)
+
+    source_parts = [room_match.source_label]
+    if room_match.phase_name:
+        source_parts.append(room_match.phase_name)
+
+    return "{0} [{1}]".format(room_text, " | ".join(source_parts))
 
 
-def format_room_source_mode(value):
-    return engine.get_room_source_label(value)
+def append_skip_reason_summary(lines, skipped_items):
+    if not skipped_items:
+        return
+
+    reason_counts = Counter()
+    for issue in skipped_items:
+        reason_counts[issue.reason] += 1
+
+    lines.append("")
+    lines.append("Skip reasons:")
+    for reason, count in reason_counts.most_common():
+        lines.append("  - {0}: {1}".format(count, reason))
+
+
+def get_result_item_sort_key(planned_update):
+    room_match = planned_update.room_match
+    room_number = ""
+    if room_match is not None:
+        room_number = room_match.room_number
+    return (engine.get_room_number_sort_key(room_number), planned_update.door_record.sort_key)
+
+
+def get_issue_sort_key(issue_record, room_side_key):
+    room_match = engine.get_room_match(issue_record.door_record, room_side_key)
+    if room_match is None and issue_record.door_record.facing_room is not None:
+        room_match = issue_record.door_record.facing_room
+    if room_match is None and issue_record.door_record.opposite_room is not None:
+        room_match = issue_record.door_record.opposite_room
+    room_number = ""
+    if room_match is not None:
+        room_number = room_match.room_number
+    return (engine.get_room_number_sort_key(room_number), issue_record.door_record.sort_key)
+
+
+def format_suffix_summary(preview):
+    if not preview.suffix_enabled:
+        return "Disabled"
+
+    style_label = engine.get_suffix_mode_label(preview.suffix_mode)
+    separator_label = "'{0}'".format(preview.separator) if preview.separator else "(none)"
+    return "{0}, separator: {1}".format(style_label, separator_label)
 
 
 def format_yes_no(value):

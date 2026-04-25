@@ -1,6 +1,11 @@
 __pycache__/
 *.pyc
 *.pyo
+.vs/
+.vscode/
+.idea/
+.codex/
+.claude/
 Thumbs.db
 Desktop.ini
 artifacts/

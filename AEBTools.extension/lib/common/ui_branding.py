@@ -3,7 +3,7 @@
 Tool Name    : UI Branding Helpers
 Purpose      : Centralize shared branding text for custom pyRevit windows and Revit task dialogs
 Author       : Ajmal P.S.
-Company      : AJ Tools
+Company      : AEB Tools
 Version      : 1.0.0
 Created      : 2026-04-21
 Last Updated : 2026-04-21

@@ -3,7 +3,7 @@
 Tool Name    : Mirror Door Detection Engine
 Purpose      : Collect host-document door instances and classify mirrored state for reporting and actions
 Author       : Ajmal P.S.
-Company      : AJ Tools
+Company      : AEB Tools
 Version      : 1.2.4
 Created      : 2026-04-22
 Last Updated : 2026-04-22
