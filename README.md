@@ -8,7 +8,7 @@ Public install repository for the `AEBTools.extension` pyRevit extension for Aut
 
 This repository is intended for installation, updates, and day-to-day use. Development, QA, and workspace automation are maintained separately in the private source workspace.
 
-- Current public package version: `1.1.1`
+- Current public package version: `1.1.2`
 - Maintainer: `Ajmal P.S.`
 
 ## Included Tools

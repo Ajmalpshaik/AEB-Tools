@@ -1,5 +1,17 @@
 # Release Notes
 
+## 1.1.2 - 2026-04-26
+
+### Included commands
+
+- `Doors > Room to Door`
+- `Doors > Mirror Door`
+
+### Release updates
+
+- Added beginner-safe Git workflow guidance in `README.md` to help new maintainers avoid risky Git commands.
+- Updated public release metadata to version `1.1.2`.
+
 ## 1.1.1 - 2026-04-25
 
 ### Included commands
