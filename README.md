@@ -52,6 +52,26 @@ After cloning, add the repository root or the `AEBTools.extension` folder to pyR
 3. Reload pyRevit.
 4. Validate the command in a test model before using it on live project work.
 
+## Beginner-safe Git workflow
+
+Use this safe sequence if you are still learning Git:
+
+1. Check current state:
+   `git status -sb`
+2. Confirm branch and remote:
+   `git branch --show-current`
+   `git remote -v`
+3. Pull safely when working tree is clean:
+   `git pull --ff-only`
+4. Stage only intended files:
+   `git add <file1> <file2>`
+5. Commit with a clear message:
+   `git commit -m "Short, specific summary"`
+6. Push your branch:
+   `git push origin <branch-name>`
+
+If files appear that you did not mean to change, stop and review before committing.
+
 ## Release Packaging
 
 GitHub Actions validates public release metadata on every push and pull request.

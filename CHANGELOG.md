@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - Reserved for upcoming public release changes.
+- Added a beginner-safe Git workflow section to `README.md` for safe pull, stage, commit, and push steps.
 
 ## [1.1.1] - 2026-04-25
 
