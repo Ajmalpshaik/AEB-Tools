@@ -4,6 +4,11 @@
 
 - Reserved for upcoming public release changes.
 
+## [1.1.3] - 2026-04-26
+
+- Synced `Dimensions > Auto Plan Dimension` into the public `AEBTools.extension` package from the private `PyRevit-Tools` workspace.
+- Updated release metadata files (`VERSION`, `README.md`, and `RELEASE_NOTES.md`) for `1.1.3`.
+
 ## [1.1.2] - 2026-04-26
 
 - Added a beginner-safe Git workflow section to `README.md` for safe pull, stage, commit, and push steps.

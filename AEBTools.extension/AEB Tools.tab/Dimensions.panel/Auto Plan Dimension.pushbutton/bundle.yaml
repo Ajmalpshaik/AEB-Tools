@@ -1,0 +1,27 @@
+# Tool Name    : Auto Dimension Bundle
+# Purpose      : Define pyRevit bundle metadata for the Auto Dimension tool
+# Author       : Ajmal P.S.
+# Company      : AJ Tools
+# Version      : 1.0.0
+# Created      : 2026-04-25
+# Last Updated : 2026-04-25
+# Target       : Revit 2020-2027
+# Platform     : pyRevit / YAML
+# Dependencies : pyRevit bundle loader
+# Input        : pyRevit command registration metadata
+# Output       : Command title, tooltip, author, and version support data
+# Notes        : Companion metadata file for the Auto Dimension tool
+# Changelog    : v1.0.0 - Cleaned and stabilised Auto Dimension workflow
+# License      : All Rights Reserved
+# Repo         : AEB-Tools
+
+title: Auto Dimension
+tooltip: |
+  Creates clean automatic plan dimensions for the active view:
+  internal room width and length dimensions, external grid dimensions, and overall building size.
+  Uses wall face references for rooms and overall dimensions, respects view rotation,
+  view crop, and view scale, and runs in one safe transaction.
+author: "All Rights Reserved (c) Ajmal P.S. | AJ Tools"
+help_url: https://github.com/Ajmalpshaik/AEB-Tools
+min_revit_version: 2020
+max_revit_version: 2027

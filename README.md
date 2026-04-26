@@ -8,7 +8,7 @@ Public install repository for the `AEBTools.extension` pyRevit extension for Aut
 
 This repository is intended for installation, updates, and day-to-day use. Development, QA, and workspace automation are maintained separately in the private source workspace.
 
-- Current public package version: `1.1.2`
+- Current public package version: `1.1.3`
 - Maintainer: `Ajmal P.S.`
 
 ## Included Tools
@@ -20,6 +20,10 @@ Updates a user-selected writable door parameter from the associated room number.
 ### Mirror Door
 
 Finds mirrored and unmirrored host-document door instances using the real `FamilyInstance.Mirrored` property. The command supports selected elements, active view, or whole-project scanning, in-model selection, and Excel-compatible CSV export.
+
+### Auto Plan Dimension
+
+Adds automated plan-dimensioning support from the `Dimensions` panel for supported plan-view workflows.
 
 ## Supported Revit Versions
 

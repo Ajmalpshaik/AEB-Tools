@@ -1,5 +1,18 @@
 # Release Notes
 
+## 1.1.3 - 2026-04-26
+
+### Included commands
+
+- `Doors > Room to Door`
+- `Doors > Mirror Door`
+- `Dimensions > Auto Plan Dimension`
+
+### Release updates
+
+- Synced the `Dimensions.panel/Auto Plan Dimension.pushbutton` runtime bundle into the public install repository.
+- Updated public release metadata to version `1.1.3`.
+
 ## 1.1.2 - 2026-04-26
 
 ### Included commands
